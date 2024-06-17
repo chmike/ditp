@@ -2,10 +2,11 @@ package low
 
 import (
 	"bytes"
-	"ditp-2/dir"
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/chmike/ditp/dir"
 )
 
 // tme return the given time string as time.Time.

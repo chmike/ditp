@@ -2,10 +2,11 @@ package low
 
 import (
 	"bytes"
-	"ditp-2/dir"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/chmike/ditp/dir"
 )
 
 func TestDecoder(t *testing.T) {

@@ -1,11 +1,12 @@
 package low
 
 import (
-	"ditp-2/dir"
 	"encoding/binary"
 	"math"
 	"math/bits"
 	"time"
+
+	"github.com/chmike/ditp/dir"
 )
 
 // Encoder is a low level IDR encoder.

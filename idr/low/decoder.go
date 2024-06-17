@@ -1,10 +1,11 @@
 package low
 
 import (
-	"ditp-2/dir"
 	"math"
 	"math/bits"
 	"time"
+
+	"github.com/chmike/ditp/dir"
 )
 
 // Decoder is a low level IDR decoder.

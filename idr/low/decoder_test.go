@@ -172,8 +172,12 @@ func TestPanics(t *testing.T) {
 	}
 
 	d = Decoder([]byte{4, 1, 2, 3, 4})
-	if !doesPanic(func() { d = SkipBlob(d, 3) }) {
-		t.Error("expect d = SkipBlob panics")
+	if !doesPanic(func() { SkipBlob(d, 3) }) {
+		t.Error("expect SkipBlob panics")
+	}
+	d = Decoder([]byte{0x11, 0xa0, 0xf4, 0x81, 0xd2, 0xc, 0x0, 0x0, 0x0, 0x0, 0xdf, 0x89, 0x3, 0x3, 0x4d, 0x44, 0x54, 0x00})
+	if !doesPanic(func() { VarTime(d) }) {
+		t.Error("expect VarTime panics")
 	}
 }
 

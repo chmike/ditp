@@ -111,7 +111,7 @@ func TestEncoder(t *testing.T) {
 		{t: NoneTag, i: TagT(0), o: []byte{0}},
 		{t: NoneTag, i: TagT(12345), o: []byte{0xB9, 0x60}},
 	}
-	e := Encoder(make([]byte, 64))
+	e := Encoder(make([]byte, 0, 64))
 	for i, test := range tests {
 		e = Reset(e)
 		switch test.t {

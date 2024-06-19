@@ -199,11 +199,10 @@ func Time(d Decoder) (Decoder, time.Time) {
 	d, utcsec := Int64(d)
 	d, nano := Uint32(d)
 	d, offset := Int32(d)
-	tm := time.Unix(utcsec, int64(nano)).UTC()
-	if offset != 0 {
-		tm = tm.In(time.FixedZone("", int(offset)))
+	if offset == 0 {
+		return d, time.Unix(utcsec, int64(nano)).UTC()
 	}
-	return d, tm
+	return d, time.Unix(utcsec, int64(nano)).In(time.FixedZone("", int(offset)))
 }
 
 // skipping methods

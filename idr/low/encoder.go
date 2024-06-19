@@ -158,18 +158,17 @@ func PutDIR(e Encoder, d dir.DIR) Encoder {
 	return e
 }
 
-// PutVarTime appends the time t.
+// PutVarTime appends the time t in the most compact form.
 func PutVarTime(e Encoder, t time.Time) Encoder {
 	utcsec := t.Unix()
 	nano := t.Nanosecond()
-	zName, offset := t.Zone()
 	p := len(e)
 	e = append(e, 0)
 	e = PutVarInt(e, utcsec)
-	e = PutUint32(e, uint32(nano))
-	if zName != "UTC" {
+	e = PutVarInt(e, int64(nano))
+	if t.Location() != time.UTC {
+		_, offset := t.Zone()
 		e = PutVarInt(e, int64(offset))
-		e = PutString(e, zName)
 	}
 	e[p] = byte(len(e) - p - 1)
 	return e
@@ -179,6 +178,9 @@ func PutVarTime(e Encoder, t time.Time) Encoder {
 func PutTime(e Encoder, t time.Time) Encoder {
 	e = PutInt64(e, t.Unix())
 	e = PutUint32(e, uint32(t.Nanosecond()))
+	if t.Location() == time.UTC {
+		return PutInt32(e, 0)
+	}
 	_, offset := t.Zone()
 	return PutInt32(e, int32(offset))
 }

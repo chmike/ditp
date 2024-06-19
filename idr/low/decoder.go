@@ -179,16 +179,14 @@ func VarTime(d Decoder) (Decoder, time.Time) {
 	l := int(d[0]) + 1
 	t := Decoder(d[1:l])
 	t, utcsec := VarInt(t)
-	t, nano := Uint32(t)
+	t, nano := VarInt(t)
 	var tm time.Time
 	if len(t) == 0 {
 		tm = time.Unix(utcsec, int64(nano)).UTC()
 	} else {
 		var offset int64
-		var zName string
 		t, offset = VarInt(t)
-		t, zName = String(t, 8)
-		tm = time.Unix(utcsec, int64(nano)).In(time.FixedZone(zName, int(offset)))
+		tm = time.Unix(utcsec, int64(nano)).In(time.FixedZone("", int(offset)))
 	}
 	if len(t) != 0 {
 		panic("IDR decoder: Time: trailing data")

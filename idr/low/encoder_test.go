@@ -10,15 +10,11 @@ import (
 
 // tme return the given time string as time.Time.
 func tme(timeStr string) time.Time {
-	t, err := time.Parse("2006-01-02T15:04:05.999999999-07:00", timeStr)
-	if err == nil {
-		return t
+	t, err := time.Parse(time.RFC3339Nano, timeStr)
+	if err != nil {
+		panic(err)
 	}
-	t, err = time.Parse("2006-01-02T15:04:05.999999999Z", timeStr)
-	if err == nil {
-		return t.UTC()
-	}
-	panic(err)
+	return t
 }
 
 func TestEncoder(t *testing.T) {

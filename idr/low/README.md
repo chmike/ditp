@@ -40,9 +40,9 @@ significant bits are encoded in the last byte so that the encoding length
 can't exceed 9 bytes.
 
 The method `PutTime` is a fast time encoding with nano second precision and
-time offset but without time zone abbreviation. The method `PutVarTime`
-uses a slightly more compact and slower encoding of the time, but includes
-the time zone abbreviation if this information is needed.
+time offset. The method `PutVarTime` uses a slightly more compact but slower
+encoding of the time. The time zone abbreviation is not included since Go
+doesn't provide a mean the check its validity.
 
 ## Decoder
 

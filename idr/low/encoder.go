@@ -38,8 +38,8 @@ func PutBytes(e Encoder, v ...byte) Encoder {
 	return append(e, v...)
 }
 
-// PutVarUint appends the uint64 v using a compact encoding.
-func PutVarUint(e Encoder, v uint64) Encoder {
+// PutVarUint64 appends the uint64 v using a compact encoding.
+func PutVarUint64(e Encoder, v uint64) Encoder {
 	for i := 0; v >= 0x80 && i < 8; i++ {
 		e = append(e, byte(v)|0x80)
 		v >>= 7
@@ -47,34 +47,44 @@ func PutVarUint(e Encoder, v uint64) Encoder {
 	return append(e, byte(v))
 }
 
+// PutVarUint appends the uint v using a compact encoding.
+func PutVarUint(e Encoder, v uint) Encoder {
+	return PutVarUint64(e, uint64(v))
+}
+
 // PutTag appends the Tag.
 func PutTag(e Encoder, t TagT) Encoder {
-	return PutVarUint(e, uint64(t))
+	return PutVarUint64(e, uint64(t))
 }
 
 // PutSize appends v encoded as a size value.
 func PutSize(e Encoder, v uint64) Encoder {
-	return PutVarUint(e, v)
+	return PutVarUint64(e, v)
 }
 
-// PutVarInt appends the int64 v using the VarUint encoding.
-func PutVarInt(e Encoder, v int64) Encoder {
+// PutVarInt64 appends the int64 v using the VarUint encoding.
+func PutVarInt64(e Encoder, v int64) Encoder {
 	x := uint64(v) << 1
 	if v < 0 {
 		x = ^x
 	}
-	return PutVarUint(e, x)
+	return PutVarUint64(e, x)
+}
+
+// PutVarInt appends the int v using the VarUint encoding.
+func PutVarInt(e Encoder, v int) Encoder {
+	return PutVarInt64(e, int64(v))
 }
 
 // PutVarFloat appends the float64 using the QVarUint encoding.
 func PutVarFloat(e Encoder, v float64) Encoder {
-	return PutVarUint(e, bits.ReverseBytes64(math.Float64bits(v)))
+	return PutVarUint64(e, bits.ReverseBytes64(math.Float64bits(v)))
 }
 
 // PutVarComplex appends the complex128 using the QVarUint encoding.
 func PutVarComplex(e Encoder, c complex128) Encoder {
-	e = PutVarUint(e, bits.ReverseBytes64(math.Float64bits(real(c))))
-	return PutVarUint(e, bits.ReverseBytes64(math.Float64bits(imag(c))))
+	e = PutVarUint64(e, bits.ReverseBytes64(math.Float64bits(real(c))))
+	return PutVarUint64(e, bits.ReverseBytes64(math.Float64bits(imag(c))))
 }
 
 // PutUint8 appends the uint8 value v.
@@ -141,12 +151,12 @@ func PutComplex128(e Encoder, v complex128) Encoder {
 
 // PutBlob appends the byte slice b prefixed with its size encoded as QVarUint.
 func PutBlob(e Encoder, b []byte) Encoder {
-	return append(PutVarUint(e, uint64(len(b))), b...)
+	return append(PutVarUint64(e, uint64(len(b))), b...)
 }
 
 // PutString appends the string s prefixed with its size encoded as QVarUint.
 func PutString(e Encoder, s string) Encoder {
-	return append(PutVarUint(e, uint64(len(s))), s...)
+	return append(PutVarUint64(e, uint64(len(s))), s...)
 }
 
 // PutDIR appends the DIR d truncated to at most 7 uint64 encoded as VarUint.
@@ -161,14 +171,14 @@ func PutDIR(e Encoder, d dir.DIR) Encoder {
 // PutVarTime appends the time t in the most compact form.
 func PutVarTime(e Encoder, t time.Time) Encoder {
 	utcsec := t.Unix()
-	nano := t.Nanosecond()
+	nano := uint64(t.Nanosecond())
 	p := len(e)
 	e = append(e, 0)
-	e = PutVarInt(e, utcsec)
-	e = PutVarInt(e, int64(nano))
+	e = PutVarInt64(e, utcsec)
+	e = PutVarUint64(e, nano)
 	if t.Location() != time.UTC {
 		_, offset := t.Zone()
-		e = PutVarInt(e, int64(offset))
+		e = PutVarInt(e, offset)
 	}
 	e[p] = byte(len(e) - p - 1)
 	return e

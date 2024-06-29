@@ -11,11 +11,6 @@ import (
 // Decoder is a low level IDR decoder.
 type Decoder []byte
 
-// Bytes returns the n bytes in front of the remaining bytes.
-func Bytes(d Decoder, n int) (Decoder, []byte) {
-	return d[n:], d[:n]
-}
-
 // Byte returns the byte in front of the remaining bytes.
 func Byte(d Decoder) (Decoder, byte) {
 	return d[1:], d[0]
@@ -26,8 +21,13 @@ func Bool(d Decoder) (Decoder, bool) {
 	return d[1:], d[0] != 0
 }
 
-// VarUint returns the uint64 in front of the remaining bytes.
-func VarUint(d Decoder) (Decoder, uint64) {
+// Bytes returns the n bytes in front of the remaining bytes.
+func Bytes(d Decoder, n int) (Decoder, []byte) {
+	return d[n:], d[:n]
+}
+
+// VarUint64 returns the uint64 in front of the remaining bytes.
+func VarUint64(d Decoder) (Decoder, uint64) {
 	var v uint64
 	var s byte
 	for i := 0; i < 8; i++ {
@@ -41,29 +41,41 @@ func VarUint(d Decoder) (Decoder, uint64) {
 	return d[9:], v | (uint64(d[8]) << s)
 }
 
+// VarUint returns the compact encoded uint in front of the remaining bytes.
+func VarUint(d Decoder) (Decoder, uint) {
+	d, v := VarUint64(d)
+	return d, uint(v)
+}
+
 // Tag returns the TagT in front of the remaining bytes.
 func Tag(d Decoder) (Decoder, TagT) {
-	d, v := VarUint(d)
+	d, v := VarUint64(d)
 	return d, TagT(v)
 }
 
 // Size return the uint64 in front of the remaining bytes.
 func Size(d Decoder) (Decoder, uint64) {
-	return VarUint(d)
+	return VarUint64(d)
 }
 
-// VarInt returns the int64 in front of the remaining bytes.
-func VarInt(d Decoder) (Decoder, int64) {
-	d, x := VarUint(d)
+// VarInt64 returns the int64 in front of the remaining bytes.
+func VarInt64(d Decoder) (Decoder, int64) {
+	d, x := VarUint64(d)
 	if x&1 != 0 {
 		return d, int64(^(x >> 1))
 	}
 	return d, int64(x >> 1)
 }
 
+// VarInt returns the int64 in front of the remaining bytes.
+func VarInt(d Decoder) (Decoder, int) {
+	d, v := VarInt64(d)
+	return d, int(v)
+}
+
 // VarFloat returns the float64 in front of the remaining bytes.
 func VarFloat(d Decoder) (Decoder, float64) {
-	d, v := VarUint(d)
+	d, v := VarUint64(d)
 	return d, math.Float64frombits(bits.ReverseBytes64(v))
 }
 
@@ -151,7 +163,7 @@ func Complex128(d Decoder) (Decoder, complex128) {
 // Bytes returns the []byte in front of the remaining bytes without
 // making a copy.
 func Blob(d Decoder, max uint64) (Decoder, []byte) {
-	d, n := VarUint(d)
+	d, n := VarUint64(d)
 	if n > max {
 		panic("IDR decoder: data too big")
 	}
@@ -178,15 +190,15 @@ func DIR(d Decoder, b dir.DIR) (Decoder, dir.DIR) {
 func VarTime(d Decoder) (Decoder, time.Time) {
 	l := int(d[0]) + 1
 	t := Decoder(d[1:l])
-	t, utcsec := VarInt(t)
-	t, nano := VarInt(t)
+	t, utcsec := VarInt64(t)
+	t, nano := VarUint64(t)
 	var tm time.Time
 	if len(t) == 0 {
 		tm = time.Unix(utcsec, int64(nano)).UTC()
 	} else {
-		var offset int64
+		var offset int
 		t, offset = VarInt(t)
-		tm = time.Unix(utcsec, int64(nano)).In(time.FixedZone("", int(offset)))
+		tm = time.Unix(utcsec, int64(nano)).In(time.FixedZone("", offset))
 	}
 	if len(t) != 0 {
 		panic("IDR decoder: Time: trailing data")
@@ -222,8 +234,8 @@ func SkipBool(d Decoder) Decoder {
 	return SkipByte(d)
 }
 
-// SkipVarUint skips a VarUint value.
-func SkipVarUint(d Decoder) Decoder {
+// SkipVarUint64 skips a compact encoded uint64 value.
+func SkipVarUint64(d Decoder) Decoder {
 	for i := 0; i < 8; i++ {
 		t := d[i]
 		if t < 0x80 {
@@ -233,23 +245,33 @@ func SkipVarUint(d Decoder) Decoder {
 	return SkipBytes(d, 9)
 }
 
+// SkipVarUint skips a compact encoded uint  value.
+func SkipVarUint(d Decoder) Decoder {
+	return SkipVarUint64(d)
+}
+
 // SkipSize skips a Size value.
 func SkipSize(d Decoder) Decoder {
 	return SkipVarUint(d)
 }
 
-// SkipVarInt skips a VarInt value.
+// SkipVarInt64 skips a compact encoded int64 value.
+func SkipVarInt64(d Decoder) Decoder {
+	return SkipVarUint(d)
+}
+
+// SkipVarInt skips a compact encoded int value.
 func SkipVarInt(d Decoder) Decoder {
 	return SkipVarUint(d)
 }
 
-// SkipFloat skips a float value.
-func SkipFloat(d Decoder) Decoder {
+// SkipVarFloat skips a compact encoded float value.
+func SkipVarFloat(d Decoder) Decoder {
 	return SkipVarUint(d)
 }
 
-// SkipComplex skips a complex value.
-func SkipComplex(d Decoder) Decoder {
+// SkipVarComplex skips a compact encoded complex value.
+func SkipVarComplex(d Decoder) Decoder {
 	return SkipVarUint(SkipVarUint(d))
 }
 
@@ -316,7 +338,7 @@ func SkipComplex128(d Decoder) Decoder {
 
 // SkipBlob skips a blob value.
 func SkipBlob(d Decoder, max uint64) Decoder {
-	d, n := VarUint(d)
+	d, n := VarUint64(d)
 	if n > max {
 		panic("IDR decoder: data too big")
 	}

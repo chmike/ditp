@@ -30,17 +30,17 @@ func TestEncoder(t *testing.T) {
 		{t: BytesTag, i: []byte{1, 2}, o: []byte{1, 2}},
 		{t: BytesTag, i: []byte("IDR0"), o: []byte{'I', 'D', 'R', '0'}},
 		// 5
-		{t: VarUintTag, i: uint64(0x7f), o: []byte{0x7F}},
-		{t: VarUintTag, i: uint64(0x3fff), o: []byte{0xff, 0x7f}},
-		{t: VarUintTag, i: uint64(0x1f_ffff), o: []byte{0xff, 0xff, 0x7f}},
-		{t: VarUintTag, i: uint64(0xfff_ffff), o: []byte{0xff, 0xff, 0xff, 0x7f}},
-		{t: VarUintTag, i: uint64(0x7_ffff_ffff), o: []byte{0xff, 0xff, 0xff, 0xff, 0x7f}},
+		{t: VarUint64Tag, i: uint64(0x7f), o: []byte{0x7F}},
+		{t: VarUint64Tag, i: uint64(0x3fff), o: []byte{0xff, 0x7f}},
+		{t: VarUint64Tag, i: uint64(0x1f_ffff), o: []byte{0xff, 0xff, 0x7f}},
+		{t: VarUint64Tag, i: uint64(0xfff_ffff), o: []byte{0xff, 0xff, 0xff, 0x7f}},
+		{t: VarUint64Tag, i: uint64(0x7_ffff_ffff), o: []byte{0xff, 0xff, 0xff, 0xff, 0x7f}},
 		// 10
-		{t: VarUintTag, i: uint64(0x3ff_ffff_ffff), o: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0x7f}},
-		{t: VarUintTag, i: uint64(0x1_ffff_ffff_ffff), o: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f}},
-		{t: VarUintTag, i: uint64(0xff_ffff_ffff_ffff), o: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f}},
-		{t: VarUintTag, i: uint64(0xffff_ffff_ffff_ffff), o: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}},
-		{t: VarIntTag, i: int64(-63), o: []byte{0x7d}},
+		{t: VarUint64Tag, i: uint64(0x3ff_ffff_ffff), o: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0x7f}},
+		{t: VarUint64Tag, i: uint64(0x1_ffff_ffff_ffff), o: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f}},
+		{t: VarUint64Tag, i: uint64(0xff_ffff_ffff_ffff), o: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f}},
+		{t: VarUint64Tag, i: uint64(0xffff_ffff_ffff_ffff), o: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}},
+		{t: VarInt64Tag, i: int64(-63), o: []byte{0x7d}},
 		// 15
 		{t: VarFloatTag, i: float64(2.), o: []byte{0x40}},
 		{t: VarFloatTag, i: float64(-2.), o: []byte{0xC0, 0x01}},
@@ -67,7 +67,7 @@ func TestEncoder(t *testing.T) {
 		{t: DIRTag, i: dir.MustMake(1, 2, 3, 4, 5, 6, 7), o: []byte{0x7, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7}},
 		// 35
 		{t: VarTimeTag, i: tme("2023-10-06T10:00:00Z"), o: []byte{0x6, 0xc0, 0xea, 0xfe, 0xd1, 0xc, 0x0}},
-		{t: VarTimeTag, i: tme("2023-10-06T10:00:00.5+01:00"), o: []byte{0xc, 0xa0, 0xb2, 0xfe, 0xd1, 0xc, 0x80, 0x94, 0xeb, 0xdc, 0x3, 0xa0, 0x38}},
+		{t: VarTimeTag, i: tme("2023-10-06T10:00:00.5+01:00"), o: []byte{0xc, 0xa0, 0xb2, 0xfe, 0xd1, 0xc, 0x80, 0xca, 0xb5, 0xee, 0x1, 0xa0, 0x38}},
 		{t: VarTimeTag, i: tme("2023-10-06T10:00:00-07:00"), o: []byte{0x9, 0xa0, 0xf4, 0x81, 0xd2, 0xc, 0x0, 0xdf, 0x89, 0x3}},
 		{t: VarTimeTag, i: tme("2023-10-06T10:00:00-05:00"), o: []byte{0x9, 0xe0, 0x83, 0x81, 0xd2, 0xc, 0x0, 0x9f, 0x99, 0x2}},
 		{t: VarTimeTag, i: tme("2023-10-06T10:00:00+02:00"), o: []byte{0x8, 0x80, 0xfa, 0xfd, 0xd1, 0xc, 0x0, 0xc0, 0x70}},
@@ -81,6 +81,7 @@ func TestEncoder(t *testing.T) {
 		{t: DIRTag, i: dir.DIR{}, o: []byte{0x00}},
 		{t: NoneTag, i: TagT(0), o: []byte{0}},
 		{t: NoneTag, i: TagT(12345), o: []byte{0xB9, 0x60}},
+		{t: VarUintTag, i: uint(123), o: []byte{0x7B}},
 	}
 	e := Encoder(make([]byte, 0, 64))
 	for i, test := range tests {
@@ -95,9 +96,13 @@ func TestEncoder(t *testing.T) {
 		case BytesTag:
 			e = PutBytes(e, test.i.([]byte)...)
 		case VarUintTag:
-			e = PutVarUint(e, test.i.(uint64))
+			e = PutVarUint(e, test.i.(uint))
 		case VarIntTag:
-			e = PutVarInt(e, test.i.(int64))
+			e = PutVarInt(e, test.i.(int))
+		case VarUint64Tag:
+			e = PutVarUint64(e, test.i.(uint64))
+		case VarInt64Tag:
+			e = PutVarInt64(e, test.i.(int64))
 		case SizeTag:
 			e = PutSize(e, test.i.(uint64))
 		case VarFloatTag:
@@ -148,5 +153,67 @@ func TestEncoder(t *testing.T) {
 		if !bytes.Equal(e, test.o) {
 			t.Errorf("%3d expected encoding %#v, got %#v", i, test.o, e)
 		}
+	}
+}
+
+type A struct {
+	Name     string
+	BirthDay time.Time
+	Phone    string
+	Siblings int
+	Spouse   bool
+	Money    float64
+}
+
+var a = A{
+	Name:     "benchmark",
+	BirthDay: time.Now(),
+	Phone:    "709-345678",
+	Siblings: 3,
+	Spouse:   true,
+	Money:    10000,
+}
+
+func encodeEx(e Encoder, a *A) Encoder {
+	e = PutString(e, a.Name)
+	e = PutTime(e, a.BirthDay)
+	e = PutString(e, a.Phone)
+	e = PutVarInt(e, a.Siblings)
+	e = PutBool(e, a.Spouse)
+	e = PutFloat64(e, a.Money)
+	return e
+}
+
+func decodeEx(d Decoder, a *A) Decoder {
+	d, a.Name = String(d, 255)
+	d, a.BirthDay = Time(d)
+	d, a.Phone = String(d, 255)
+	d, a.Siblings = VarInt(d)
+	d, a.Spouse = Bool(d)
+	d, a.Money = Float64(d)
+	return d
+}
+
+var e Encoder
+var d Decoder
+
+func BenchmarkEncode(b *testing.B) {
+	e = make(Encoder, 0, 128)
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		e = Reset(e)
+		e = encodeEx(e, &a)
+	}
+}
+
+var a2 A
+
+func BenchmarkDecode(b *testing.B) {
+	e = encodeEx(nil, &a)
+	data := []byte(e)
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		d = Decoder(data)
+		d = decodeEx(d, &a2)
 	}
 }

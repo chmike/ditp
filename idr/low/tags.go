@@ -28,6 +28,8 @@ const (
 	DIRTag
 	VarUintTag
 	VarIntTag
+	VarUint64Tag
+	VarInt64Tag
 	VarFloatTag
 	VarComplexTag
 	VarTimeTag
@@ -36,39 +38,42 @@ const (
 )
 
 func (t TagT) String() string {
-	const str = "NoneTag" + // 7 7
-		"BoolTag" + // 7 14
-		"ByteTag" + // 7 21
-		"Uint8Tag" + // 8 29
-		"Uint16Tag" + // 9 38
-		"Uint32Tag" + // 9 47
-		"Uint64Tag" + // 9 56
-		"Int8Tag" + // 7 63
-		"Int16Tag" + // 8 71
-		"Int32Tag" + // 8 79
-		"Int64Tag" + // 8 87
-		"Float32Tag" + // 10 97
-		"Float64Tag" + // 10 107
-		"Complex64Tag" + // 12 119
-		"Complex128Tag" + // 13 132
-		"TimeTag" + // 7 139
-		"BytesTag" + // 8 147
-		"SizeTag" + // 7 154
-		"BlobTag" + // 7 161
-		"StringTag" + // 9 170
-		"DIRTag" + // 6 176
-		"VarUintTag" + // 10 186
-		"VarIntTag" + // 9 195
-		"VarFloatTag" + // 11 206
-		"VarComplexTag" + // 13 219
-		"VarTimeTag" + // 10 229
-		"InvalidTag" // 10 239
-	var idx = []byte{0, 7, 14, 21, 29, 38, 47, 56, 63, 71, 79, 87, 97, 107, 119, 132, 139, 147, 154, 161, 170, 176, 186, 195, 206, 219, 229, 239}
+	var str = []string{
+		"NoneTag",
+		"BoolTag",
+		"ByteTag",
+		"Uint8Tag",
+		"Uint16Tag",
+		"Uint32Tag",
+		"Uint64Tag",
+		"Int8Tag",
+		"Int16Tag",
+		"Int32Tag",
+		"Int64Tag",
+		"Float32Tag",
+		"Float64Tag",
+		"Complex64Tag",
+		"Complex128Tag",
+		"TimeTag",
+		"BytesTag",
+		"SizeTag",
+		"BlobTag",
+		"StringTag",
+		"DIRTag",
+		"VarUintTag",
+		"VarIntTag",
+		"VarUint64Tag",
+		"VarInt64Tag",
+		"VarFloatTag",
+		"VarComplexTag",
+		"VarTimeTag",
+		"InvalidTag",
+	}
 	if t < MaxTag {
-		return str[idx[t]:idx[t+1]]
+		return str[t]
 	}
 	if t == InvalidTag {
-		return str[idx[MaxTag]:idx[MaxTag+1]]
+		return str[len(str)-1]
 	}
 	return fmt.Sprintf("(%d)Tag", t)
 }
@@ -99,10 +104,11 @@ func TagFromString(s string) TagT {
 		"DIRTag":        20,
 		"VarUintTag":    21,
 		"VarIntTag":     22,
-		"VarFloatTag":   23,
-		"VarComplexTag": 24,
-		"VarTimeTag":    25,
-		"MaxTag":        26,
+		"VarUint64Tag":  23,
+		"VarInt64Tag":   24,
+		"VarFloatTag":   25,
+		"VarComplexTag": 26,
+		"VarTimeTag":    27,
 		"InvalidTag":    ^TagT(0),
 	}
 	if t, OK := m[s]; OK {

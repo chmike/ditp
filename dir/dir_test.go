@@ -2,7 +2,6 @@ package dir
 
 import (
 	"bytes"
-	"reflect"
 	"testing"
 )
 
@@ -99,16 +98,13 @@ func TestDIR(t *testing.T) {
 		t.Errorf("expect equal")
 	}
 
-	d2.d[0] = 2
-	if d.Equal(d2) {
-		t.Errorf("expect not equal")
-	}
-	d2.d = append(d2.d, 123)
+	// With [8]uint64, direct mutation is replaced by Make
+	d2, _ = Make(d2[1], d2[2], 123)
 	if d.Equal(d2) {
 		t.Errorf("expect not equal")
 	}
 
-	d = d2.Copy(d)
+	d = d2.Copy()
 	if !d.Equal(d2) {
 		t.Errorf("expect equal")
 	}
@@ -117,7 +113,12 @@ func TestDIR(t *testing.T) {
 		t.Errorf("expect 123, got %d", d.ID(2))
 	}
 	if d.ID(3) != 0 {
-		t.Errorf("expect 0, got %d", d.ID(2))
+		t.Errorf("expect 0, got %d", d.ID(3))
+	}
+
+	d.SetNil()
+	if !d.IsNil() {
+		t.Errorf("expect is nil")
 	}
 
 	if !doesPanic(func() {
@@ -127,7 +128,44 @@ func TestDIR(t *testing.T) {
 	}
 }
 
-func TestContains(t *testing.T) {
+func TestCheck(t *testing.T) {
+	tests := []struct {
+		name string
+		d    DIR
+		e    string
+	}{
+		// nil DIR — valid
+		{"nil", DIR{}, ""},
+		// 1 identifier — valid
+		{"1id", MustMake(1), ""},
+		// max identifiers — valid
+		{"7ids", MustMake(1, 2, 3, 4, 5, 6, 7), ""},
+		// too many identifiers
+		{"too_many", DIR{8}, "invalid dir: too many identifiers"},
+		// zero in middle — position 2
+		{"zero_at_2", DIR{4, 1, 0, 3, 0}, "invalid dir: identifier 1 is 0"},
+		// zero in middle — position 3
+		{"zero_at_3", DIR{4, 1, 2, 0, 0}, "invalid dir: identifier 2 is 0"},
+		// zero last identifier allowed — node DIR
+		{"node_dir", MustMake(1, 0), ""},
+		// zero first identifier allowed — relative DIR
+		{"relative_dir", MustMake(0, 1), ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.d.Check()
+			var errStr string
+			if err != nil {
+				errStr = err.Error()
+			}
+			if errStr != tc.e {
+				t.Errorf("expect error %q, got %q", tc.e, errStr)
+			}
+		})
+	}
+}
+
+func TestPrefixes(t *testing.T) {
 	tests := []struct {
 		a, b DIR
 		r    bool
@@ -142,7 +180,7 @@ func TestContains(t *testing.T) {
 		{a: m(2, 0), b: m(1, 2, 0), r: false},
 	}
 	for i, test := range tests {
-		r := test.a.Contains(test.b)
+		r := test.a.Prefixes(test.b)
 		if r != test.r {
 			t.Errorf("%d expect %v, got %v for %q contains %q", i, test.r, r, test.a, test.b)
 		}
@@ -183,10 +221,25 @@ func TestAppendBinary(t *testing.T) {
 		{i: m(0x0100000000000000), o: []byte{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01}},
 		{i: m(0xFFFFFFFFFFFFFFFF), o: []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}},
 	}
+	buf := make([]byte, 256)
 	for i, test := range tests {
 		b := test.i.AppendBinary(nil)
 		if !bytes.Equal(test.o, b) {
 			t.Errorf("%d expect %#v, got %#v", i, test.o, b)
+		}
+
+		sz := test.i.BinarySize()
+		if sz != len(test.o) {
+			t.Errorf("%d appendBinary expect len %d, got %d", i, len(test.o), sz)
+		}
+
+		sz2 := test.i.EncodeBinary(buf, 0)
+		if sz != sz2 {
+			t.Errorf("%d expect size %d, got size %d", i, sz, sz2)
+		}
+
+		if !bytes.Equal(buf[:sz], test.o) {
+			t.Errorf("%d encodeBinary expect %#v, got %#v", i, test.o, buf[:sz])
 		}
 	}
 }
@@ -231,7 +284,7 @@ func TestDecodeBinary(t *testing.T) {
 		{i: []byte{1, 2, 3, 0, 5, 6, 7}, e: "invalid dir: identifier 3 is 0"},
 	}
 	for i, test := range tests {
-		d, err := DecodeBinary(DIR{}, test.i)
+		d, err := DecodeBinary(test.i)
 		var errStr string
 		if err != nil {
 			errStr = err.Error()
@@ -353,10 +406,10 @@ func TestDecodeURI(t *testing.T) {
 		{o: m(1, 0), i: "dis:1.0/"},
 		// 35
 		{o: m(0, 1), i: "dis:0.1/"},
-		{i: "dis:0.1//", e: "invalid dir: character '/' is URI"},
+		{i: "dis:0.1//", e: "invalid dir: character '/' in URI"},
 	}
 	for i, test := range tests {
-		d, err := DecodeURI(DIR{}, test.i)
+		d, err := DecodeURI(test.i)
 		var errStr string
 		if err != nil {
 			errStr = err.Error()
@@ -368,7 +421,7 @@ func TestDecodeURI(t *testing.T) {
 		if test.e != "" {
 			continue
 		}
-		if !reflect.DeepEqual(test.o, d) {
+		if d != test.o {
 			t.Errorf("%d expect %v, got %v", i, test.o, d)
 		}
 	}
@@ -378,5 +431,5 @@ func TestDecodeURI(t *testing.T) {
 		t.Errorf("expect %q, got %q", exp, s)
 	}
 
-	DecodeURI(m(1), "dis:1.2/")
+	DecodeURI("dis:1.2/")
 }

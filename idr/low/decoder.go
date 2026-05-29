@@ -172,18 +172,19 @@ func Blob(d Decoder, max uint64) (Decoder, []byte) {
 
 // String returns a copy of the string in front of the remaining bytes.
 func String(d Decoder, max uint64) (Decoder, string) {
-	d, v := Blob(d, max)
-	return d, string(v)
+	d, n := VarUint64(d)
+	return d[n:], string(d[:n])
 }
 
 // DIR returns the DIR in front of the remaining bytes and store it in b.
-func DIR(d Decoder, b dir.DIR) (Decoder, dir.DIR) {
-	l := int(d[0]) + 1
-	b, err := dir.DecodeBinary(b, d[1:l])
+func DIR(d Decoder) (Decoder, dir.DIR) {
+	l := int(d[0])
+	d = d[1:]
+	v, err := dir.DecodeBinary(d)
 	if err != nil {
 		panic(err)
 	}
-	return d[l:], b
+	return d[l:], v
 }
 
 // VarTime returns the next value as a time or time.Zero when in error.

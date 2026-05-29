@@ -130,7 +130,7 @@ func TestDecoder(t *testing.T) {
 		case StringTag:
 			d, v = String(d, 10)
 		case DIRTag:
-			d, v = DIR(d, dir.DIR{})
+			d, v = DIR(d)
 		case VarTimeTag:
 			d, v = VarTime(d)
 			v = v.(time.Time).Format("2006-01-02T15:04:05.999999999-07:00")
@@ -151,7 +151,7 @@ func TestDecoder(t *testing.T) {
 
 	tmi := time.Now()
 	e := Encoder{}
-	e = PutVarTime(e, tmi)
+	e = AppendVarTime(e, tmi)
 	_, tmo := VarTime(Decoder(e))
 	if !tmi.Equal(tmo) {
 		t.Errorf("expect %q equal %q", tmi, tmo)
@@ -159,7 +159,7 @@ func TestDecoder(t *testing.T) {
 
 	tmi = time.Now()
 	e = Encoder{}
-	e = PutTime(e, tmi)
+	e = AppendTime(e, tmi)
 	_, tmo = Time(Decoder(e))
 	if !tmi.Equal(tmo) {
 		t.Errorf("expect %q equal %q", tmi, tmo)
@@ -178,7 +178,7 @@ func doesPanic(f func()) (res bool) {
 
 func TestPanics(t *testing.T) {
 	d := Decoder([]byte{8, 1, 2, 3, 4, 5, 6, 7, 8})
-	if !doesPanic(func() { DIR(d, dir.DIR{}) }) {
+	if !doesPanic(func() { DIR(d) }) {
 		t.Error("expect DIR panics")
 	}
 

@@ -88,61 +88,61 @@ func TestEncoder(t *testing.T) {
 		e = Reset(e)
 		switch test.t {
 		case NoneTag:
-			e = PutTag(e, test.i.(TagT))
+			e = AppendTag(e, test.i.(TagT))
 		case BoolTag:
-			e = PutBool(e, test.i.(bool))
+			e = AppendBool(e, test.i.(bool))
 		case ByteTag:
-			e = PutByte(e, test.i.(byte))
+			e = AppendByte(e, test.i.(byte))
 		case BytesTag:
-			e = PutBytes(e, test.i.([]byte)...)
+			e = AppendBytes(e, test.i.([]byte)...)
 		case VarUintTag:
-			e = PutVarUint(e, test.i.(uint))
+			e = AppendVarUint(e, test.i.(uint))
 		case VarIntTag:
-			e = PutVarInt(e, test.i.(int))
+			e = AppendVarInt(e, test.i.(int))
 		case VarUint64Tag:
-			e = PutVarUint64(e, test.i.(uint64))
+			e = AppendVarUint64(e, test.i.(uint64))
 		case VarInt64Tag:
-			e = PutVarInt64(e, test.i.(int64))
+			e = AppendVarInt64(e, test.i.(int64))
 		case SizeTag:
-			e = PutSize(e, test.i.(uint64))
+			e = AppendSize(e, test.i.(uint64))
 		case VarFloatTag:
-			e = PutVarFloat(e, test.i.(float64))
+			e = AppendVarFloat(e, test.i.(float64))
 		case VarComplexTag:
-			e = PutVarComplex(e, test.i.(complex128))
+			e = AppendVarComplex(e, test.i.(complex128))
 		case Uint8Tag:
-			e = PutUint8(e, test.i.(uint8))
+			e = AppendUint8(e, test.i.(uint8))
 		case Uint16Tag:
-			e = PutUint16(e, test.i.(uint16))
+			e = AppendUint16(e, test.i.(uint16))
 		case Uint32Tag:
-			e = PutUint32(e, test.i.(uint32))
+			e = AppendUint32(e, test.i.(uint32))
 		case Uint64Tag:
-			e = PutUint64(e, test.i.(uint64))
+			e = AppendUint64(e, test.i.(uint64))
 		case Int8Tag:
-			e = PutInt8(e, test.i.(int8))
+			e = AppendInt8(e, test.i.(int8))
 		case Int16Tag:
-			e = PutInt16(e, test.i.(int16))
+			e = AppendInt16(e, test.i.(int16))
 		case Int32Tag:
-			e = PutInt32(e, test.i.(int32))
+			e = AppendInt32(e, test.i.(int32))
 		case Int64Tag:
-			e = PutInt64(e, test.i.(int64))
+			e = AppendInt64(e, test.i.(int64))
 		case Float32Tag:
-			e = PutFloat32(e, test.i.(float32))
+			e = AppendFloat32(e, test.i.(float32))
 		case Float64Tag:
-			e = PutFloat64(e, test.i.(float64))
+			e = AppendFloat64(e, test.i.(float64))
 		case Complex64Tag:
-			e = PutComplex64(e, test.i.(complex64))
+			e = AppendComplex64(e, test.i.(complex64))
 		case Complex128Tag:
-			e = PutComplex128(e, test.i.(complex128))
+			e = AppendComplex128(e, test.i.(complex128))
 		case BlobTag:
-			e = PutBlob(e, test.i.([]byte))
+			e = AppendBlob(e, test.i.([]byte))
 		case StringTag:
-			e = PutString(e, test.i.(string))
+			e = AppendString(e, test.i.(string))
 		case DIRTag:
-			e = PutDIR(e, test.i.(dir.DIR))
+			e = AppendDIR(e, test.i.(dir.DIR))
 		case VarTimeTag:
-			e = PutVarTime(e, test.i.(time.Time))
+			e = AppendVarTime(e, test.i.(time.Time))
 		case TimeTag:
-			e = PutTime(e, test.i.(time.Time))
+			e = AppendTime(e, test.i.(time.Time))
 		default:
 			t.Errorf("%3d unsupported type %T", i, test.i)
 			continue
@@ -153,67 +153,5 @@ func TestEncoder(t *testing.T) {
 		if !bytes.Equal(e, test.o) {
 			t.Errorf("%3d expected encoding %#v, got %#v", i, test.o, e)
 		}
-	}
-}
-
-type A struct {
-	Name     string
-	BirthDay time.Time
-	Phone    string
-	Siblings int
-	Spouse   bool
-	Money    float64
-}
-
-var a = A{
-	Name:     "benchmark",
-	BirthDay: time.Now(),
-	Phone:    "709-345678",
-	Siblings: 3,
-	Spouse:   true,
-	Money:    10000,
-}
-
-func encodeEx(e Encoder, a *A) Encoder {
-	e = PutString(e, a.Name)
-	e = PutTime(e, a.BirthDay)
-	e = PutString(e, a.Phone)
-	e = PutVarInt(e, a.Siblings)
-	e = PutBool(e, a.Spouse)
-	e = PutFloat64(e, a.Money)
-	return e
-}
-
-func decodeEx(d Decoder, a *A) Decoder {
-	d, a.Name = String(d, 255)
-	d, a.BirthDay = Time(d)
-	d, a.Phone = String(d, 255)
-	d, a.Siblings = VarInt(d)
-	d, a.Spouse = Bool(d)
-	d, a.Money = Float64(d)
-	return d
-}
-
-var e Encoder
-var d Decoder
-
-func BenchmarkEncode(b *testing.B) {
-	e = make(Encoder, 0, 128)
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		e = Reset(e)
-		e = encodeEx(e, &a)
-	}
-}
-
-var a2 A
-
-func BenchmarkDecode(b *testing.B) {
-	e = encodeEx(nil, &a)
-	data := []byte(e)
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		d = Decoder(data)
-		d = decodeEx(d, &a2)
 	}
 }

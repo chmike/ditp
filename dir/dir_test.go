@@ -278,10 +278,11 @@ func TestDecodeBinary(t *testing.T) {
 		{o: m(0x0FFFFFFFFFFFFFF), i: []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F}},
 		{o: m(0x0100000000000000), i: []byte{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01}},
 		{o: m(0xFFFFFFFFFFFFFFFF), i: []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}},
-		{i: []byte{0x80, 0x80}, e: "invalid dir: truncated binary identifier"},
+		{i: []byte{0x80, 0x80}, e: "invalid dir: identifier 0 is truncated"},
 		{i: []byte{1, 2, 3, 4, 5, 6, 7, 8}, e: "invalid dir: too many identifiers"},
 		// 25
-		{i: []byte{1, 2, 3, 0, 5, 6, 7}, e: "invalid dir: identifier 3 is 0"},
+		{i: []byte{1, 2, 3, 0, 5, 6, 7}, e: "invalid dir: identifier 3 is zero"},
+		{i: []byte{0x80, 0x80, 0x80, 0x00}, e: "invalid dir: identifier 0 is not minimal length"},
 	}
 	for i, test := range tests {
 		d, err := DecodeBinary(test.i)

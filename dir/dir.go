@@ -216,37 +216,48 @@ func (d DIR) EncodeBinary(b []byte, n int) int {
 	return n
 }
 
+// decodeVarUint64 decodes the LEB128 encoded uint64 in front of b.
+// Returns nil and 0 when it's too long, or nil and 1 when it's not
+// the most compact encoding.
+func decodeVarUint64(b []byte) ([]byte, uint64) {
+	if b[0] < 0x80 {
+		return b[1:], uint64(b[0])
+	}
+	var v uint64
+	var s byte
+	for i, c := range b {
+		if c < 0x80 || i == 8 {
+			if c == 0 {
+				return nil, 1
+			}
+			return b[i+1:], v | uint64(c)<<s
+		}
+		v |= uint64(c&0x7f) << s
+		s += 7
+	}
+	return nil, 0
+}
+
 // DecodeBinary decodes the binary encoded DIR in b.
-func DecodeBinary(b []byte) (DIR, error) {
-	var d DIR
-	if len(b) == 0 {
-		return DIR{}, nil
-	}
-	var n uint64
-	var i int
-	for n < MaxIDs && i < len(b) {
+func DecodeBinary(b []byte) (d DIR, err error) {
+	for len(b) > 0 {
 		var v uint64
-		var s byte
-		limit := min(len(b), i+8)
-		for i < limit && b[i] >= 0x80 {
-			v |= uint64(b[i]&0x7f) << s
-			s += 7
-			i++
+		b, v = decodeVarUint64(b)
+		if b == nil {
+			if v == 1 {
+				return DIR{}, fmt.Errorf("%w: identifier %d is not minimal length", ErrInvalid, d[0])
+			}
+			return DIR{}, fmt.Errorf("%w: identifier %d is truncated", ErrInvalid, d[0])
 		}
-		if i == len(b) {
-			return DIR{}, fmt.Errorf("%w: truncated binary identifier", ErrInvalid)
+		if d[0] == MaxIDs {
+			return DIR{}, fmt.Errorf("%w: too many identifiers", ErrInvalid)
 		}
-		n++
-		d[n] = v | (uint64(b[i]) << s)
-		i++
+		d[0]++
+		d[d[0]] = v
 	}
-	if i < len(b) {
-		return DIR{}, fmt.Errorf("%w: too many identifiers", ErrInvalid)
-	}
-	d[0] = uint64(n)
-	for i := 2; i < int(n); i++ {
+	for i := 2; i < int(d[0])-1; i++ {
 		if d[i] == 0 {
-			return DIR{}, fmt.Errorf("%w: identifier %d is 0", ErrInvalid, i-1)
+			return DIR{}, fmt.Errorf("%w: identifier %d is zero", ErrInvalid, i-1)
 		}
 	}
 	return d, nil

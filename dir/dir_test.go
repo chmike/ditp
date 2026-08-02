@@ -32,7 +32,7 @@ func TestDIR(t *testing.T) {
 		{d: []uint64{1, 2}, isAbsolute: true, isInfo: true},
 		{d: []uint64{1, 2, 0, 1}, e: "invalid dir: identifier 2 is 0"},
 		// 5
-		{d: []uint64{0}, isAbsolute: true, isNode: true},
+		{d: []uint64{0}, isRelative: true, isNode: true},
 		{d: []uint64{1, 0}, isAbsolute: true, isNode: true},
 		{d: []uint64{0, 0}, isRelative: true, isNode: true},
 		{d: []uint64{0, 1}, isRelative: true, isInfo: true},
@@ -53,20 +53,17 @@ func TestDIR(t *testing.T) {
 		if test.e != "" {
 			continue
 		}
-		if d.IsNil() != test.isNil {
-			t.Errorf("%d expect isNil %v, got %v", i, test.isNil, d.IsNil())
+		if d.Nil() != test.isNil {
+			t.Errorf("%d expect isNil %v, got %v", i, test.isNil, d.Nil())
 		}
-		if d.IsInfo() != test.isInfo {
-			t.Errorf("%d expect isInfo %v, got %v", i, test.isInfo, d.IsInfo())
+		if d.Info() != test.isInfo {
+			t.Errorf("%d expect isInfo %v, got %v", i, test.isInfo, d.Info())
 		}
-		if d.IsNode() != test.isNode {
-			t.Errorf("%d expect isNode %v, got %v", i, test.isNode, d.IsNode())
+		if d.Node() != test.isNode {
+			t.Errorf("%d expect isNode %v, got %v", i, test.isNode, d.Node())
 		}
-		if d.IsAbsolute() != test.isAbsolute {
-			t.Errorf("%d expect isAbsolute %v, got %v", i, test.isAbsolute, d.IsAbsolute())
-		}
-		if d.IsRelative() != test.isRelative {
-			t.Errorf("%d expect isRelative %v, got %v", i, test.isRelative, d.IsRelative())
+		if d.Absolute() != test.isAbsolute {
+			t.Errorf("%d expect isAbsolute %v, got %v", i, test.isAbsolute, d.Absolute())
 		}
 	}
 
@@ -89,23 +86,23 @@ func TestDIR(t *testing.T) {
 		t.Errorf("expect len 2, got %d", d.Len())
 	}
 
-	d2 := m(d.IDs(nil)...)
-	if !d.Equal(d2) {
+	d2 := m(d.IDs()...)
+	if d != d2 {
 		t.Errorf("expect equal")
 	}
-	d2 = m(d.IDs([]uint64{1})...)
-	if !d.Equal(d2) {
+	d2 = m(d.AppendIDs([]uint64{1})...)
+	if d != d2 {
 		t.Errorf("expect equal")
 	}
 
 	// With [8]uint64, direct mutation is replaced by Make
-	d2, _ = Make(d2[1], d2[2], 123)
-	if d.Equal(d2) {
+	d2, _ = Make(d2.d[1], d2.d[2], 123)
+	if d == d2 {
 		t.Errorf("expect not equal")
 	}
 
-	d = d2.Copy()
-	if !d.Equal(d2) {
+	d = d2
+	if d != d2 {
 		t.Errorf("expect equal")
 	}
 
@@ -116,52 +113,10 @@ func TestDIR(t *testing.T) {
 		t.Errorf("expect 0, got %d", d.ID(3))
 	}
 
-	d.SetNil()
-	if !d.IsNil() {
-		t.Errorf("expect is nil")
-	}
-
 	if !doesPanic(func() {
 		MustMake(1, 2, 0, 3)
 	}) {
 		t.Error("expect panics")
-	}
-}
-
-func TestCheck(t *testing.T) {
-	tests := []struct {
-		name string
-		d    DIR
-		e    string
-	}{
-		// nil DIR — valid
-		{"nil", DIR{}, ""},
-		// 1 identifier — valid
-		{"1id", MustMake(1), ""},
-		// max identifiers — valid
-		{"7ids", MustMake(1, 2, 3, 4, 5, 6, 7), ""},
-		// too many identifiers
-		{"too_many", DIR{8}, "invalid dir: too many identifiers"},
-		// zero in middle — position 2
-		{"zero_at_2", DIR{4, 1, 0, 3, 0}, "invalid dir: identifier 1 is 0"},
-		// zero in middle — position 3
-		{"zero_at_3", DIR{4, 1, 2, 0, 0}, "invalid dir: identifier 2 is 0"},
-		// zero last identifier allowed — node DIR
-		{"node_dir", MustMake(1, 0), ""},
-		// zero first identifier allowed — relative DIR
-		{"relative_dir", MustMake(0, 1), ""},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			err := tc.d.Check()
-			var errStr string
-			if err != nil {
-				errStr = err.Error()
-			}
-			if errStr != tc.e {
-				t.Errorf("expect error %q, got %q", tc.e, errStr)
-			}
-		})
 	}
 }
 
@@ -297,7 +252,7 @@ func TestDecodeBinary(t *testing.T) {
 		if test.e != "" {
 			continue
 		}
-		if !d.Equal(test.o) {
+		if d != test.o {
 			t.Errorf("%d expect %v, got %v", i, test.o, d)
 		}
 	}
@@ -311,9 +266,9 @@ func TestAppendURI(t *testing.T) {
 		// 0
 		{i: DIR{}, o: "dis:/"},
 		{i: m(1), o: "dis:1/"},
-		{i: m(0), o: "dis:0/"},
-		{i: m(0, 0), o: "dis:0.0/"},
-		{i: m(0, 1, 0), o: "dis:0.1.0/"},
+		{i: m(0), o: "dis:./"},
+		{i: m(0, 0), o: "dis:../"},
+		{i: m(0, 1, 0), o: "dis:.1./"},
 		// 5
 		{i: m(0x3F), o: "dis:_/"},
 		{i: m(0x7F), o: "dis:_1/"},
@@ -336,8 +291,8 @@ func TestAppendURI(t *testing.T) {
 		{i: m(0x0FFFFFFFFFFFFFF), o: "dis:_________3/"},
 		{i: m(0x0100000000000000), o: "dis:0000000004/"},
 		{i: m(0xFFFFFFFFFFFFFFFF), o: "dis:__________F/"},
-		{i: m(0, 1, 2, 0), o: "dis:0.1.2.0/"},
-		{i: m(1, 0), o: "dis:1.0/"},
+		{i: m(0, 1, 2, 0), o: "dis:.1.2./"},
+		{i: m(1, 0), o: "dis:1./"},
 	}
 	for i, test := range tests {
 		b := test.i.AppendURI(nil)
@@ -352,7 +307,7 @@ func TestAppendURI(t *testing.T) {
 	}
 
 	s = m(1, 2345, 0).URI()
-	if exp := "dis:1.fa.0/"; s != exp {
+	if exp := "dis:1.fa./"; s != exp {
 		t.Errorf("expect %q, got %q", exp, s)
 	}
 }
@@ -366,9 +321,9 @@ func TestDecodeURI(t *testing.T) {
 		// 0
 		{o: DIR{}, i: "dis:/"},
 		{o: m(1), i: "dis:1/"},
-		{o: m(0), i: "dis:0/"},
-		{o: m(0, 0), i: "dis:0.0/"},
-		{o: m(0, 1, 0), i: "dis:0.1.0/"},
+		{o: m(0), i: "dis:./"},
+		{o: m(0, 0), i: "dis:../"},
+		{o: m(0, 1, 0), i: "dis:.1./"},
 		// 5
 		{o: m(0x3F), i: "dis:_/"},
 		{o: m(0x7F), i: "dis:_1/"},
@@ -391,23 +346,26 @@ func TestDecodeURI(t *testing.T) {
 		{o: m(0x0FFFFFFFFFFFFFF), i: "dis:_________3/"},
 		{o: m(0x0100000000000000), i: "dis:0000000004/"},
 		{o: m(0xFFFF_FFFF_FFFF_FFFF), i: "dis:__________F/"},
-		{o: m(0, 1, 2, 0), i: "dis:0.1.2.0/"},
-		{i: "", e: "invalid dir: URI must start with \"dis:\" and end with \"/\""},
+		{o: m(0, 1, 2, 0), i: "dis:.1.2./"},
+		{i: "", e: "invalid dir: URI doesn't start with \"dis:\" and end with \"/\""},
 		// 25
-		{i: "dis:", e: "invalid dir: URI must start with \"dis:\" and end with \"/\""},
-		{i: "dis:.../", e: "invalid dir: identifier 1 is 0"},
-		{i: "dis:.. /", e: "invalid dir: invalid characters in URI"},
-		{i: "dis:__________G/", e: "invalid dir: identifier overflow"},
-		{i: "dis:1.2.3.4.5.6.7/x", e: "invalid dir: URI must start with \"dis:\" and end with \"/\""},
+		{i: "dis:", e: "invalid dir: URI doesn't start with \"dis:\" and end with \"/\""},
+		{i: "dis:.../", e: "invalid dir: invalid character in URI at offset 6"},
+		{i: "dis:.. /", e: "invalid dir: invalid character in URI at offset 6"},
+		{i: "dis:__________G/", e: "invalid dir: identifier 0 in URI overflows"},
+		{i: "dis:1.2.3.4.5.6.7/x", e: "invalid dir: URI doesn't start with \"dis:\" and end with \"/\""},
 		// 30
-		{i: "dis:1.2.3.4.5.6.7./", e: "invalid dir: invalid characters in URI"},
-		{i: "dis:1.2.3.4.5.6.7.1/", e: "invalid dir: invalid characters in URI"},
-		{i: "dis:1.2.3.0.5.6.7/", e: "invalid dir: identifier 3 is 0"},
-		{i: "dis:1.2.3..5.6.7/", e: "invalid dir: identifier 3 is 0"},
-		{o: m(1, 0), i: "dis:1.0/"},
+		{i: "dis:1.2.3.4.5.6.7./", e: "invalid dir: too many identifiers in URI"},
+		{i: "dis:1.2.3.4.5.6.7.1/", e: "invalid dir: too many identifiers in URI"},
+		{i: "dis:1.2.3.0.5.6.7/", e: "invalid dir: identifier 3 in URI is 0 or not minimal length"},
+		{i: "dis:1.2.3..5.6.7/", e: "invalid dir: identifier 3 in URI is 0"},
+		{o: m(1, 0), i: "dis:1./"},
 		// 35
-		{o: m(0, 1), i: "dis:0.1/"},
-		{i: "dis:0.1//", e: "invalid dir: character '/' in URI"},
+		{o: m(0, 1), i: "dis:.1/"},
+		{i: "dis:.1//", e: "invalid dir: invalid character in URI at offset 6"},
+		{i: "dis:..1/", e: "invalid dir: invalid character in URI at offset 6"},
+		{i: "dis:1,2/", e: "invalid dir: invalid character in URI at offset 5"},
+		{i: "dis:1,/", e: "invalid dir: invalid character in URI at offset 5"},
 	}
 	for i, test := range tests {
 		d, err := DecodeURI(test.i)

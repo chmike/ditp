@@ -99,6 +99,15 @@ func (d DIR) InfoID() uint64 {
 	return d.d[d.Len()]
 }
 
+// NodeDIR returns the DIR of the node containing d. Returns d when d is
+// already a node or is nil.
+func (d DIR) NodeDIR() DIR {
+	if d.d[0] > 0 {
+		d.d[d.d[0]] = 0
+	}
+	return d
+}
+
 // Prefixes returns true if d is a node DIR and d2 is prefixed with d.
 func (d DIR) Prefixes(d2 DIR) bool {
 	if d.Info() || d.Len()-1 >= d2.Len() {
@@ -120,6 +129,11 @@ func (d DIR) Nil() bool {
 // Info returns true if d is a path to an information or a nil DIR.
 func (d DIR) Info() bool {
 	return d.Len() == 0 || d.InfoID() != 0
+}
+
+// Node returns true if d is a path to a node or a nil DIR.
+func (d DIR) Node() bool {
+	return d.Len() != 0 && d.InfoID() == 0
 }
 
 // Absolute returns true if d is an absolute DIR or a nil DIR.
@@ -240,7 +254,9 @@ func (d DIR) URI() string {
 	return string(d.AppendURI(make([]byte, 0, (maxURIIDLen+1)*d.Len()+4)))
 }
 
-// AppendURI appends d URI encoded to b.
+// AppendURI appends d URI encoded to b. A relative DIR starts with '.', a
+// node DIR ends with '.'. DIR{0} (root/node) the URI "dis:./" and DIR{0,0} (relative
+// node) is the URI "dis:../".
 func (d DIR) AppendURI(b []byte) []byte {
 	const txtChars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_"
 	b = append(b, "dis:"...)
@@ -248,14 +264,13 @@ func (d DIR) AppendURI(b []byte) []byte {
 	if n > 0 {
 		for i := 1; i <= n; i++ {
 			id := d.d[i]
-			if id == 0 {
-				b = append(b, '0')
-			} else {
-				for id != 0 {
-					b = append(b, txtChars[id&0x3F])
-					id >>= 6
-				}
+			for id != 0 {
+				b = append(b, txtChars[id&0x3F])
+				id >>= 6
 			}
+			b = append(b, '.')
+		}
+		if d.d[n] == 0 && (n == 1 || d.d[n-1] == 0) {
 			b = append(b, '.')
 		}
 		b = b[:len(b)-1]
@@ -264,7 +279,75 @@ func (d DIR) AppendURI(b []byte) []byte {
 }
 
 // DecodeURI decodes a URI encoded DIR from b.
-func DecodeURI[T string | []byte](b T) (DIR, error) {
+// func DecodeURI[T string | []byte](b T) (DIR, error) {
+// 	var txtTbl = [256]int8{
+// 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+// 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+// 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 62, -1, -1,
+// 		0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1, -1, -1, -1, -1, -1,
+// 		-1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+// 		25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, -1, -1, -1, -1, 63,
+// 		-1, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
+// 		51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, -1, -1, -1, -1, -1,
+// 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+// 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+// 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+// 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+// 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+// 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+// 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+// 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+// 	}
+// 	var d DIR
+// 	if len(b) < 5 || b[0] != 'd' || b[1] != 'i' || b[2] != 's' || b[3] != ':' || b[len(b)-1] != '/' {
+// 		return d, fmt.Errorf("%w: URI must start with \"dis:\" and end with \"/\"", ErrInvalid)
+// 	}
+// 	t := b[4:]
+// 	n := 0
+// 	for n < MaxIDs && t[0] != '/' {
+// 		var v uint64
+// 		var s byte
+// 		var i int
+// 		for i < maxURIIDLen {
+// 			c := txtTbl[t[i]]
+// 			if c < 0 {
+// 				break
+// 			}
+// 			v |= uint64(c) << s
+// 			s += 6
+// 			i++
+// 		}
+// 		if i == maxURIIDLen && txtTbl[t[i-1]] > 0xF {
+// 			return DIR{}, fmt.Errorf("%w: identifier overflow", ErrInvalid)
+// 		}
+// 		if i > 1 && t[i-1] == '0' {
+// 			return DIR{}, fmt.Errorf("%w: identifier %d is not minimal length", ErrInvalid, n+1)
+// 		}
+// 		n++
+// 		d.d[n] = v
+// 		t = t[i:]
+// 		if n == MaxIDs || t[0] != '.' {
+// 			break
+// 		}
+// 		t = t[1:]
+// 	}
+// 	if t[0] != '/' {
+// 		return DIR{}, fmt.Errorf("%w: invalid characters in URI", ErrInvalid)
+// 	}
+// 	if len(t) > 1 {
+// 		return DIR{}, fmt.Errorf("%w: character '/' in URI", ErrInvalid)
+// 	}
+// 	d.d[0] = uint64(n)
+// 	for i := 2; i < n; i++ {
+// 		if d.d[i] == 0 {
+// 			return DIR{}, fmt.Errorf("%w: identifier %d is 0", ErrInvalid, i-1)
+// 		}
+// 	}
+// 	return d, nil
+// }
+
+// DecodeURI decodes a URI encoded DIR from b.
+func DecodeURI[T string | []byte](b T) (d DIR, err error) {
 	var txtTbl = [256]int8{
 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
@@ -283,18 +366,35 @@ func DecodeURI[T string | []byte](b T) (DIR, error) {
 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 	}
-	var d DIR
 	if len(b) < 5 || b[0] != 'd' || b[1] != 'i' || b[2] != 's' || b[3] != ':' || b[len(b)-1] != '/' {
-		return d, fmt.Errorf("%w: URI must start with \"dis:\" and end with \"/\"", ErrInvalid)
+		return d, fmt.Errorf("%w: URI doesn't start with \"dis:\" and end with \"/\"", ErrInvalid)
 	}
-	t := b[4:]
-	n := 0
-	for n < MaxIDs && t[0] != '/' {
+	if len(b) == 5 {
+		return
+	}
+	i, bEnd := 4, len(b)-1
+	if b[i] == '.' {
+		d.d[0] = 1
+		i++
+		if i == bEnd {
+			return
+		}
+		if b[i] == '.' {
+			if i+1 == bEnd {
+				d.d[0] = 2
+				return
+			}
+			return DIR{}, fmt.Errorf("%w: invalid character in URI at offset %d", ErrInvalid, 6)
+		}
+	}
+	for {
 		var v uint64
 		var s byte
-		var i int
-		for i < maxURIIDLen {
-			c := txtTbl[t[i]]
+		var c int8
+		idEnd := i + maxURIIDLen
+		idStart := i
+		for i < idEnd {
+			c = txtTbl[b[i]]
 			if c < 0 {
 				break
 			}
@@ -302,28 +402,30 @@ func DecodeURI[T string | []byte](b T) (DIR, error) {
 			s += 6
 			i++
 		}
-		if i == maxURIIDLen && txtTbl[t[i-1]] > 0xF {
-			return DIR{}, fmt.Errorf("%w: identifier overflow", ErrInvalid)
+		if i == idEnd && c > 0xF {
+			return DIR{}, fmt.Errorf("%w: identifier %d in URI overflows", ErrInvalid, d.d[0])
 		}
-		n++
-		d.d[n] = v
-		t = t[i:]
-		if n == MaxIDs || t[0] != '.' {
-			break
+		if i > idStart && b[i-1] == '0' {
+			return DIR{}, fmt.Errorf("%w: identifier %d in URI is 0 or not minimal length", ErrInvalid, d.d[0])
 		}
-		t = t[1:]
-	}
-	if t[0] != '/' {
-		return DIR{}, fmt.Errorf("%w: invalid characters in URI", ErrInvalid)
-	}
-	if len(t) > 1 {
-		return DIR{}, fmt.Errorf("%w: character '/' in URI", ErrInvalid)
-	}
-	d.d[0] = uint64(n)
-	for i := 2; i < n; i++ {
-		if d.d[i] == 0 {
-			return DIR{}, fmt.Errorf("%w: identifier %d is 0", ErrInvalid, i-1)
+		if v == 0 {
+			return DIR{}, fmt.Errorf("%w: identifier %d in URI is 0", ErrInvalid, d.d[0])
 		}
+		d.d[0]++
+		d.d[d.d[0]] = v
+		if i == bEnd {
+			return
+		}
+		if d.d[0] == MaxIDs {
+			return DIR{}, fmt.Errorf("%w: too many identifiers in URI", ErrInvalid)
+		}
+		if b[i] != '.' {
+			return DIR{}, fmt.Errorf("%w: invalid character in URI at offset %d", ErrInvalid, i)
+		}
+		if i+1 == bEnd {
+			d.d[0]++
+			return
+		}
+		i++
 	}
-	return d, nil
 }

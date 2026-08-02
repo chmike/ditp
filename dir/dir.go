@@ -11,8 +11,7 @@ import (
 var ErrInvalid = errors.New("invalid dir")
 
 // DIR is a downward path in a distributed information system (DIS) tree.
-// d[0] is the number of identifiers. d[1..7] are the identifiers.
-type DIR [8]uint64
+type DIR struct{ d [8]uint64 }
 
 // MaxIDs is the maximum number of uint64 identifiers in a DIR.
 const MaxIDs = 7
@@ -45,7 +44,7 @@ func Make(ids ...uint64) (DIR, error) {
 		}
 	}
 	var d DIR
-	d[0] = uint64(copy(d[1:], ids))
+	d.d[0] = uint64(copy(d.d[1:], ids))
 	return d, nil
 }
 
@@ -58,19 +57,6 @@ func MustMake(ids ...uint64) DIR {
 	return d
 }
 
-// Check returns an error if d is an invalid DIR.
-func (d DIR) Check() error {
-	if d[0] > MaxIDs {
-		return fmt.Errorf("%w: too many identifiers", ErrInvalid)
-	}
-	for i := uint64(2); i < d[0]; i++ {
-		if d[i] == 0 {
-			return fmt.Errorf("%w: identifier %d is 0", ErrInvalid, i-1)
-		}
-	}
-	return nil
-}
-
 // String converts d to a human readable representation.
 func (d DIR) String() string {
 	var b strings.Builder
@@ -79,92 +65,78 @@ func (d DIR) String() string {
 		if i != 0 {
 			b.WriteByte('.')
 		}
-		b.WriteString(strconv.FormatUint(d[i+1], 10))
+		b.WriteString(strconv.FormatUint(d.d[i+1], 10))
 	}
 	return b.String()
 }
 
 // Len returns the number of identifiers in d.
 func (d DIR) Len() int {
-	return int(d[0])
+	return int(d.d[0])
 }
 
 // ID returns the identifier at index i, or 0 if out of range.
 func (d DIR) ID(i int) uint64 {
 	if i >= 0 && i < d.Len() {
-		return d[i+1]
+		return d.d[i+1]
 	}
 	return 0
 }
 
-// IDs copies the identifiers of d into ids and returns the result.
-func (d DIR) IDs(ids []uint64) []uint64 {
-	return append(ids[:0], d[1:d.Len()+1]...)
+// AppendIDs appends the identifiers of d to ids and returns the result.
+func (d DIR) AppendIDs(ids []uint64) []uint64 {
+	return append(ids[:0], d.d[1:d.Len()+1]...)
 }
 
-// Copy returns a copy of d. Since DIR is a value type, this is equivalent
-// to a plain assignment, but provided for API compatibility.
-func (d DIR) Copy() DIR {
-	return d
+// IDs returns the identifiers of d.
+func (d DIR) IDs() []uint64 {
+	return d.d[1 : d.Len()+1]
 }
 
-// InfoID returns the information ID or 0 when d is nil.
+// InfoID returns the information ID or 0 when d has no identifiers
+// which is called a nil DIR.
 func (d DIR) InfoID() uint64 {
-	return d[d.Len()]
-}
-
-// Equal returns true if d is equal to d2.
-func (d DIR) Equal(d2 DIR) bool {
-	return d == d2
+	return d.d[d.Len()]
 }
 
 // Prefixes returns true if d is a node DIR and d2 is prefixed with d.
 func (d DIR) Prefixes(d2 DIR) bool {
-	if d.IsInfo() || d.Len()-1 >= d2.Len() {
+	if d.Info() || d.Len()-1 >= d2.Len() {
 		return false
 	}
 	for i := 0; i < d.Len()-1; i++ {
-		if d[i+1] != d2[i+1] {
+		if d.d[i+1] != d2.d[i+1] {
 			return false
 		}
 	}
 	return d.Len() != d2.Len() || d2.InfoID() != 0
 }
 
-// IsNil returns true if d is a nil DIR. A nil DIR has no identifiers.
-func (d DIR) IsNil() bool {
-	return d[0] == 0
+// Nil returns true if d is a nil DIR. A nil DIR has no identifiers.
+func (d DIR) Nil() bool {
+	return d.d[0] == 0
 }
 
-// SetNil returns a nil DIR.
-func (d *DIR) SetNil() {
-	*d = DIR{}
-}
-
-// IsNode returns true if d is a node DIR.
-func (d DIR) IsNode() bool {
-	return d.Len() > 0 && d.InfoID() == 0
-}
-
-// IsInfo returns true if d is an absolute path to an information or nil.
-func (d DIR) IsInfo() bool {
+// Info returns true if d is a path to an information or a nil DIR.
+func (d DIR) Info() bool {
 	return d.Len() == 0 || d.InfoID() != 0
 }
 
-// IsRelative returns true if d is a relative DIR.
-func (d DIR) IsRelative() bool {
-	return d.Len() > 1 && d[1] == 0
+// Absolute returns true if d is an absolute DIR or a nil DIR.
+func (d DIR) Absolute() bool {
+	return d.Len() == 0 || d.d[1] != 0
 }
 
-// IsAbsolute returns true if d is an absolute DIR or nil.
-func (d DIR) IsAbsolute() bool {
-	return d.Len() <= 1 || d[1] != 0
+// Binary returns the binary encoded d. Each identifier is
+// encoded in the most compact LEB128 variant where the 8 most significant
+// bits are encoded in a single byte when present.
+func (d DIR) Binary() []byte {
+	return d.AppendBinary(make([]byte, 0, d.BinarySize()))
 }
 
-// AppendBinary appends d binary encoded to b. The first byte encodes
-// the number of bytes that follow. They contain the identifiers encoded
-// using a LEB-128 variant encoding where the 8 most significant bits are
-// encoded in a single byte when not zero.
+// AppendBinary appends the binary encoded d to b. Each identifier is
+// encoded in the most compact LEB128 variant where the 8 most significant
+// bits are encoded in a single byte when present.
 func (d DIR) AppendBinary(b []byte) []byte {
 	n := d.Len()
 	if n == 0 {
@@ -174,7 +146,7 @@ func (d DIR) AppendBinary(b []byte) []byte {
 		b = make([]byte, 0, MaxBinaryLen)
 	}
 	for i := 1; i <= n; i++ {
-		v := d[i]
+		v := d.d[i]
 		for j := 0; v >= 0x80 && j < 8; j++ {
 			b = append(b, byte(v)|0x80)
 			v >>= 7
@@ -187,12 +159,12 @@ func (d DIR) AppendBinary(b []byte) []byte {
 // BinarySize returns the byte size of the binary encoded DIR.
 func (d DIR) BinarySize() int {
 	var l int
-	for i := uint64(1); i <= d[0]; i++ {
-		v := d[i]
-		if v >= 0x80 {
-			l += (bits.Len64((v<<1)>>8) + 6) / 7
+	for i := uint64(1); i <= d.d[0]; i++ {
+		lz := bits.LeadingZeros64(d.d[i] | 1)
+		if lz == 0 {
+			lz = 1
 		}
-		l++
+		l += (70 - lz) / 7
 	}
 	return l
 }
@@ -203,7 +175,7 @@ func (d DIR) BinarySize() int {
 func (d DIR) EncodeBinary(b []byte, n int) int {
 	if l := d.Len(); l > 0 {
 		for i := 1; i <= l; i++ {
-			v := d[i]
+			v := d.d[i]
 			for j := 0; v >= 0x80 && j < 8; j++ {
 				b[n] = byte(v) | 0x80
 				n++
@@ -245,18 +217,18 @@ func DecodeBinary(b []byte) (d DIR, err error) {
 		b, v = decodeVarUint64(b)
 		if b == nil {
 			if v == 1 {
-				return DIR{}, fmt.Errorf("%w: identifier %d is not minimal length", ErrInvalid, d[0])
+				return DIR{}, fmt.Errorf("%w: identifier %d is not minimal length", ErrInvalid, d.d[0])
 			}
-			return DIR{}, fmt.Errorf("%w: identifier %d is truncated", ErrInvalid, d[0])
+			return DIR{}, fmt.Errorf("%w: identifier %d is truncated", ErrInvalid, d.d[0])
 		}
-		if d[0] == MaxIDs {
+		if d.d[0] == MaxIDs {
 			return DIR{}, fmt.Errorf("%w: too many identifiers", ErrInvalid)
 		}
-		d[0]++
-		d[d[0]] = v
+		d.d[0]++
+		d.d[d.d[0]] = v
 	}
-	for i := 2; i < int(d[0])-1; i++ {
-		if d[i] == 0 {
+	for i := 2; i < int(d.d[0]); i++ {
+		if d.d[i] == 0 {
 			return DIR{}, fmt.Errorf("%w: identifier %d is zero", ErrInvalid, i-1)
 		}
 	}
@@ -275,7 +247,7 @@ func (d DIR) AppendURI(b []byte) []byte {
 	n := d.Len()
 	if n > 0 {
 		for i := 1; i <= n; i++ {
-			id := d[i]
+			id := d.d[i]
 			if id == 0 {
 				b = append(b, '0')
 			} else {
@@ -334,7 +306,7 @@ func DecodeURI[T string | []byte](b T) (DIR, error) {
 			return DIR{}, fmt.Errorf("%w: identifier overflow", ErrInvalid)
 		}
 		n++
-		d[n] = v
+		d.d[n] = v
 		t = t[i:]
 		if n == MaxIDs || t[0] != '.' {
 			break
@@ -347,9 +319,9 @@ func DecodeURI[T string | []byte](b T) (DIR, error) {
 	if len(t) > 1 {
 		return DIR{}, fmt.Errorf("%w: character '/' in URI", ErrInvalid)
 	}
-	d[0] = uint64(n)
+	d.d[0] = uint64(n)
 	for i := 2; i < n; i++ {
-		if d[i] == 0 {
+		if d.d[i] == 0 {
 			return DIR{}, fmt.Errorf("%w: identifier %d is 0", ErrInvalid, i-1)
 		}
 	}
